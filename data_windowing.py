@@ -12,6 +12,7 @@ class WindowGenerator():
         self.input_width = input_width
         self.label_width = label_width
         self.shift = shift
+        self.total_window_size = input_width + shift
 
         if (p_test_df+p_val_df) < 1:
             training_end = int((len(df)*(1-p_test_df-p_val_df)))
@@ -37,7 +38,19 @@ class WindowGenerator():
             labels.append(arr[i + input_width + shift - 1 :i + input_width + shift - 1 + label_width])
 
         return np.array(inputs), np.array(labels)
+    
+    def make_tf_dataset(self, inputs, labels):
 
+        ds = tf.data.Dataset.from_tensor_slices((inputs, labels))
+        ds = ds.shuffle(1000).batch(32).prefetch(tf.data.AUTOTUNE)
+
+        return ds
+
+    def make_tf_split_dataset(self):
+
+        self.training_tf = self.make_tf_dataset(self.training_input,self.training_label)
+        self.val_tf = self.make_tf_dataset(self.val_input,self.val_label)
+        self.test_tf = self.make_tf_dataset(self.test_input,self.test_label)
             
 
 
