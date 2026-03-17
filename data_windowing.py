@@ -42,7 +42,7 @@ class WindowGenerator():
     def make_tf_dataset(self, inputs, labels):
 
         ds = tf.data.Dataset.from_tensor_slices((inputs, labels))
-        ds = ds.shuffle(1000).batch(32).prefetch(tf.data.AUTOTUNE)
+        ds = ds.batch(32).prefetch(tf.data.AUTOTUNE)
 
         return ds
 
