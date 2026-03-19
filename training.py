@@ -1,5 +1,7 @@
 import pandas as pd 
 import tensorflow as tf 
+from tensorflow.keras.callbacks import EarlyStopping
+
 import yfinance as yf
 from data_windowing import WindowGenerator
 import numpy as np
@@ -13,6 +15,10 @@ warnings.filterwarnings("ignore")
 import matplotlib
 matplotlib.use('Qt5Agg') 
 import matplotlib.pyplot as plt 
+
+import os
+
+
 
 with open("parameters.toml","rb") as f:
     toml_data:dict = tomllib.load(f)
@@ -86,13 +92,37 @@ def create_sequential_model(window: WindowGenerator,input_shape = None) -> tf.ke
     return model
 
 def training_sequential_model(ticket:str) -> tf.keras.Sequential: 
+
+    early_stop = EarlyStopping(
+        monitor='val_loss',   
+        patience=12,           
+        restore_best_weights=True,  
+        verbose=1            
+    )
+
     df,mean,std = extract_ticket_data(ticket)
     df = create_window_class(df)
     model = create_sequential_model(df)
-    history = model.fit(df.training_tf,validation_data =df.val_tf,epochs= EPOCHS)
+    history = model.fit(df.training_tf,validation_data =df.val_tf,epochs= EPOCHS,callbacks=[early_stop])
     history_plot(history)
 
     return model
+def saving_model(model:tf.keras.Sequential,ticket:str) -> None: 
+    cwd = os.getcwd()
+    workingSPace = os.listdir(cwd)
+    if "tfKerasModels" not in workingSPace:
+        os.makedirs("tfKerasModels", exist_ok=True)
+
+    contents = os.listdir("tfKerasModels")
+    if ticket not in contents:
+        os.makedirs(f"tfKerasModels/{ticket}", exist_ok=True)
+
+    model.save(f"tfKerasModels/{ticket}/{ticket}_model.keras")
+
+def main(ticket:str) ->None:
+    model = training_sequential_model(ticket)
+    saving_model(model,ticket)
+
 
 if __name__ == "__main__": 
-    model = training_sequential_model("AAPL")
+    main("AAPL")
