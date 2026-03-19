@@ -4,6 +4,7 @@ import numpy as np
 
 
 
+
 class WindowGenerator():
     def __init__(self,df:pd.DataFrame,input_width:int, shift:int,p_val_df:float = 0.2, p_test_df: float = 0.1,label_width:int = 1,label_encoder = None):
 

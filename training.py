@@ -3,29 +3,42 @@ import tensorflow as tf
 import yfinance as yf
 from data_windowing import WindowGenerator
 import numpy as np
+
+import tomllib
+from plots import history_plot
+
+import warnings
+warnings.filterwarnings("ignore")
+
 import matplotlib
 matplotlib.use('Qt5Agg') 
 import matplotlib.pyplot as plt 
 
+with open("parameters.toml","rb") as f:
+    toml_data:dict = tomllib.load(f)
+    EPOCHS = toml_data["EPOCHS"]
+    SIGMA  = toml_data["SIGMA"]
 
 
-
-def add_gaussian_noise(df: pd.DataFrame,sigma = 0.02):
+def add_gaussian_noise(df: pd.DataFrame,sigma = SIGMA):
     for columns in df.columns: 
         noise = np.random.normal(0, df[columns].std()*sigma, size=len(df[columns]))
         df[columns] += noise
     return df
 
-def extract_ticket_data(ticket:str,period = "max") -> pd.DataFrame:
+def extract_ticket_data(ticket:str,period = "max") -> tuple[pd.DataFrame, float, float]:
     df = yf.Ticker(ticket).history(period = period)
     if df.empty: 
         return False
     df = df.ffill()
     df = df.drop(columns=['Dividends', 'Stock Splits'])
     df = add_gaussian_noise(df)
+    mean = df.mean()
+    std = df.std()
     df = (df-df.mean())/df.std()
+    
   
-    return df
+    return df,mean,std
 
 def multivariate_input_width(df: pd.DataFrame, threshold=0.2, max_lag=20):
     n_vars = df.shape[1]
@@ -46,13 +59,15 @@ def multivariate_input_width(df: pd.DataFrame, threshold=0.2, max_lag=20):
 
 def create_window_class(df:pd.DataFrame) -> WindowGenerator:
     input_width, shift = multivariate_input_width(df)
-    wg = WindowGenerator(df,input_width,shift)
+    label_index = df.columns.get_loc("Close")
+    wg = WindowGenerator(df,input_width,shift,label_encoder=label_index)
     return wg
 
 def create_sequential_model(window: WindowGenerator,input_shape = None) -> tf.keras.Sequential:
 
     if input_shape is None:
         input_shape = window.training_input.shape[1:] 
+        print(input_shape)
 
     model = tf.keras.Sequential([
         tf.keras.layers.Input(shape=input_shape),
@@ -71,35 +86,13 @@ def create_sequential_model(window: WindowGenerator,input_shape = None) -> tf.ke
     return model
 
 def training_sequential_model(ticket:str) -> tf.keras.Sequential: 
-    df = extract_ticket_data(ticket)
+    df,mean,std = extract_ticket_data(ticket)
     df = create_window_class(df)
     model = create_sequential_model(df)
-    history = model.fit(df.training_tf,validation_data =df.val_tf,epochs= 50)
+    history = model.fit(df.training_tf,validation_data =df.val_tf,epochs= EPOCHS)
     history_plot(history)
 
     return model
 
-
-
-def history_plot(history) ->None: 
-    plt.plot(history.history['mae'], label='train MAE')
-    plt.plot(history.history['val_mae'], label='val MAE')
-    plt.xlabel('Epoch')
-    plt.ylabel('MAE')
-    plt.legend()
-    plt.show()
-
-
-    plt.plot(history.history['loss'], label='train loss')
-    plt.plot(history.history['val_loss'], label='val loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.show()
-
-
-
-
 if __name__ == "__main__": 
-    model = training_sequential_model_boosting("AAPL")
     model = training_sequential_model("AAPL")
