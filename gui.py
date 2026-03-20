@@ -7,33 +7,111 @@ warnings.filterwarnings(
 )
 
 from textual.app import App
-from textual.widgets import Header, Footer, Input
+from textual.widgets import Header, Footer, Input,Tabs, Tab,Button
 from training import main 
+from textual.containers import Container
 from plots import *
 from textual_plotext import PlotextPlot  
+import tomllib
+import tomli_w
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
 
 class Terminal(App):
     def compose(self):
         yield Header()
-        self.input_field = Input(placeholder="Ticket")
-        yield self.input_field
-        yield PlotextPlot(id="history_plot")       
-        yield PlotextPlot(id="prediction_plot")  
-    
+
+        yield Tabs(
+            Tab("Dashboard", id="tab_dashboard"),
+            Tab("Parameters", id="tab_parameters"),
+        )
+
+        
+        yield Container(
+            Input(placeholder="Ticker", id="ticker_input"),
+            PlotextPlot(id="history_plot"),
+            PlotextPlot(id="prediction_plot"),
+            id="dashboard_content"
+        )
+
+        yield Container(
+            Input(placeholder="Sigma", id="sigma"),
+            Input(placeholder="Epochs", id="epochs"),
+            Button("Update", id="update_button"),
+            id="parameters_content"
+        )
+
+         
         yield Footer()
+
+    async def on_mount(self):
+        self.query_one("#parameters_content").display = False
+
+    async def on_tabs_tab_activated(self, event: Tabs.TabActivated):
+        dashboard = self.query_one("#dashboard_content")
+        params = self.query_one("#parameters_content")
+
+        if event.tab.id == "tab_dashboard":
+            dashboard.display = True
+            params.display = False
+        else:
+            dashboard.display = False
+            params.display = True
     
     async def on_input_submitted(self, event: Input.Submitted):
-        self.input_field.disabled = True 
-        result,mean,std,model,wg = main(event.value)
+       if event.input.id == "ticker_input":
+        event.input.disabled = True
+
+        result, mean, std, model, wg = main(event.value)
+
         history_widget = self.query_one("#history_plot", PlotextPlot)
         prediction_widget = self.query_one("#prediction_plot", PlotextPlot)
 
         history_plot_text_widget(history_widget, result)
-        plot_prediction_test_general_widget(prediction_widget,wg,model,mean["Close"].item(),std["Close"].item(),3)
+
+        plot_prediction_test_general_widget(
+            prediction_widget,
+            wg,
+            model,
+            mean["Close"].item(),
+            std["Close"].item(),
+            3
+        )
+    
+    async def on_button_pressed(self,event: Button.Pressed): 
+        sigma = self.query_one("#sigma", Input).value
+        epochs = self.query_one("#epochs", Input).value
         
+        Safe = True 
 
+        if sigma is None: 
+            Safe = False
+        if epochs is None: 
+            Safe = False
+        
+        if not is_number(sigma) or not is_number(epochs): 
+            Safe = False
+        else: 
+            if (float(sigma) > 1 or float(sigma) <= 0) or (int(epochs) <= 0):
+                Safe = False
 
+        
+        if Safe:
+            
+            with open("parameters.toml", "rb") as f:
+                parameters = tomllib.load(f)
 
+            parameters["EPOCHS"] = int(epochs)
+            parameters["SIGMA"] = float(sigma)
 
+            with open("parameters.toml", "wb") as f:
+                tomli_w.dump(parameters, f)
+
+            
 if __name__ == "__main__": 
     Terminal().run()
