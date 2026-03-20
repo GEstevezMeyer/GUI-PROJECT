@@ -5,7 +5,7 @@ Ce projet a pour objectif de créer une interface graphique (GUI, Graphical User
 
 ### Frontend
 
-Pour le frontend, nous utiliserons Seaborn et Matplotlib pour la visualisation des données, et Tkinter pour la création de l'interface graphique.
+Pour le frontend, nous utiliserons Seaborn et Matplotlib pour la visualisation des données, et Textual pour la création de l'interface graphique.
 
 ### Backend
 

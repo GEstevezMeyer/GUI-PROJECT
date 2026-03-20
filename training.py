@@ -1,22 +1,19 @@
+import os
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2" 
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message=".*TensorFlow GPU support is not available on native Windows.*"
+)
+
 import pandas as pd 
 import tensorflow as tf 
 from tensorflow.keras.callbacks import EarlyStopping
-
 import yfinance as yf
 from data_windowing import WindowGenerator
 import numpy as np
-
 import tomllib
-from plots import history_plot
 
-import warnings
-warnings.filterwarnings("ignore")
-
-import matplotlib
-matplotlib.use('Qt5Agg') 
-import matplotlib.pyplot as plt 
-
-import os
 
 
 
@@ -104,9 +101,10 @@ def training_sequential_model(ticket:str) -> tf.keras.Sequential:
     df = create_window_class(df)
     model = create_sequential_model(df)
     history = model.fit(df.training_tf,validation_data =df.val_tf,epochs= EPOCHS,callbacks=[early_stop])
-    history_plot(history)
+    
 
-    return model
+    return model,history,mean,std
+
 def saving_model(model:tf.keras.Sequential,ticket:str) -> None: 
     cwd = os.getcwd()
     workingSPace = os.listdir(cwd)
@@ -119,9 +117,11 @@ def saving_model(model:tf.keras.Sequential,ticket:str) -> None:
 
     model.save(f"tfKerasModels/{ticket}/{ticket}_model.keras")
 
-def main(ticket:str) ->None:
-    model = training_sequential_model(ticket)
+def main(ticket:str) ->dict:
+    model,history,mean,std = training_sequential_model(ticket)
     saving_model(model,ticket)
+
+    return history,mean,std
 
 
 if __name__ == "__main__": 
