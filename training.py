@@ -38,7 +38,7 @@ def extract_ticket_data(ticket:str,period = "max") -> tuple[pd.DataFrame, float,
     df = add_gaussian_noise(df)
     mean = df.mean()
     std = df.std()
-    df = (df-df.mean())/df.std()
+    df = (df-mean)/std
     
   
     return df,mean,std
@@ -60,17 +60,20 @@ def multivariate_input_width(df: pd.DataFrame, threshold=0.2, max_lag=20):
     return input_width, shift
 
 
-def create_window_class(df:pd.DataFrame) -> WindowGenerator:
+def create_window_class(df:pd.DataFrame,model_type:str = "LSTM") -> WindowGenerator:
     input_width, shift = multivariate_input_width(df)
     label_index = df.columns.get_loc("Close")
-    wg = WindowGenerator(df,input_width,shift,label_encoder=label_index)
+    if model_type == "LSTM":
+        wg = WindowGenerator(df,input_width,shift,label_encoder=label_index)
+    elif model_type == "Linear":
+        wg = WindowGenerator(df=df,input_width=1,shift=1,label_width=1,label_encoder= label_index)
     return wg
 
 def create_sequential_model(window: WindowGenerator,input_shape = None) -> tf.keras.Sequential:
 
     if input_shape is None:
         input_shape = window.training_input.shape[1:] 
-        print(input_shape)
+     
 
     model = tf.keras.Sequential([
         tf.keras.layers.Input(shape=input_shape),
@@ -88,7 +91,25 @@ def create_sequential_model(window: WindowGenerator,input_shape = None) -> tf.ke
 
     return model
 
-def training_sequential_model(ticket:str) -> tf.keras.Sequential: 
+def create_linear_model(window: WindowGenerator,input_shape = None):
+
+    if input_shape is None:
+        input_shape = window.training_input.shape[1:] 
+
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape=input_shape),
+        tf.keras.layers.Dense(1)
+    ])
+
+    model.compile(
+        optimizer="adam",
+        loss="mse",
+        metrics=["mae"]
+    )
+
+    return model
+
+def training_sequential_model(ticket:str,model_type = "Linear") -> tf.keras.Sequential: 
 
     early_stop = EarlyStopping(
         monitor='val_loss',   
@@ -98,8 +119,13 @@ def training_sequential_model(ticket:str) -> tf.keras.Sequential:
     )
 
     df,mean,std = extract_ticket_data(ticket)
-    df = create_window_class(df)
-    model = create_sequential_model(df)
+    if model_type == "Linear":
+        df = create_window_class(df)
+        model = create_linear_model(df)
+    elif model_type == "LSTM":
+        df = create_window_class(df,model_type)
+        model = create_sequential_model(df)
+
     history = model.fit(df.training_tf,validation_data =df.val_tf,epochs= EPOCHS,callbacks=[early_stop])
     
 
@@ -117,12 +143,12 @@ def saving_model(model:tf.keras.Sequential,ticket:str) -> None:
 
     model.save(f"tfKerasModels/{ticket}/{ticket}_model.keras")
 
-def main(ticket:str) ->dict:
-    model,history,mean,std,wg = training_sequential_model(ticket)
+def main(ticket:str,model_type:str="LSTM") ->dict:
+    model,history,mean,std,wg = training_sequential_model(ticket,model_type)
     saving_model(model,ticket)
 
     return history,mean,std,model,wg
 
 
 if __name__ == "__main__": 
-    main("AAPL")
+    main("AAPL","Linear")
