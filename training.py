@@ -14,6 +14,8 @@ from data_windowing import WindowGenerator
 import numpy as np
 import tomllib
 
+from tensorflow.keras.callbacks import History
+
 
 
 
@@ -142,12 +144,28 @@ def saving_model(model:tf.keras.Sequential,ticket:str) -> None:
         os.makedirs(f"tfKerasModels/{ticket}", exist_ok=True)
     model.save(f"tfKerasModels/{ticket}/{ticket}_model.keras")
 
+def make_toml_file(model_type:str,mean:float,std:float,history:History,ticket:str): 
+    toml_content = f"""
+    model = "{model_type}"
+    epochs = {EPOCHS}
+    sigma = {SIGMA}
+    mae = {min(history.history["mae"])}
+    val_mae =  {min(history.history["val_mae"])}
+    loss = {min(history.history["loss"])}
+    val_loss = {min(history.history["loss"])}
+    """
+
+    with open(f"tfKerasModels/{ticket}/config.toml", "w") as f:
+        f.write(toml_content)
+
 def main(ticket:str,model_type:str="LSTM") ->dict:
     model,history,mean,std,wg = training_sequential_model(ticket,model_type)
     saving_model(model,ticket)
+    make_toml_file(model_type,mean,std,history,ticket)
+
 
     return history,mean,std,model,wg
 
 
 if __name__ == "__main__": 
-    main("AAPL","Linear")
+    main("AMZN","Linear")

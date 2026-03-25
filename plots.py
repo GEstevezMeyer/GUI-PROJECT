@@ -6,7 +6,8 @@ from data_windowing import WindowGenerator
 import tensorflow as tf 
 import tomllib
 import plotext as plt
-from textual_plotext import PlotextPlot  
+from textual_plotext import PlotextPlot
+from textual.widgets import DataTable
 
 
 with open("parameters.toml","rb") as f:
@@ -56,3 +57,12 @@ def plot_prediction_test_general_widget(widget: PlotextPlot, wg, model, mean: fl
     plt.ylabel("Value")
 
     widget.refresh() 
+
+def make_dataTable(widget:DataTable,result):
+    history = result.history
+    for columns in history.keys(): 
+        widget.add_column(columns)
+
+    rows = list(zip(*history.values()))
+
+    widget.add_rows(rows)

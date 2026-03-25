@@ -7,10 +7,11 @@ warnings.filterwarnings(
 )
 
 from textual.app import App
-from textual.widgets import Header, Footer, Input,Tabs, Tab,Button,Select
+from textual.widgets import Header, Footer, Input,Tabs, Tab,Button,Select, DataTable
 from training import main 
 from textual.containers import Container
 from plots import *
+from model_handler import * 
 from textual_plotext import PlotextPlot  
 import tomllib
 import tomli_w
@@ -27,11 +28,14 @@ class Terminal(App):
         yield Header()
 
         yield Tabs(
+            Tab("Main",id = "tab_main"),
             Tab("Dashboard", id="tab_dashboard"),
-            Tab("Parameters", id="tab_parameters"),
+            Tab("Parameters", id="tab_parameters")
         )
 
-        
+        yield Container(DataTable(id = "table_models"),id= "main_content")
+
+    
         yield Container(
             Input(placeholder="Ticker", id="ticker_input"),
             Select(
@@ -44,6 +48,7 @@ class Terminal(App):
         ),
             PlotextPlot(id="history_plot"),
             PlotextPlot(id="prediction_plot"),
+            DataTable(id="history_dataTable"),
             id="dashboard_content"
         )
 
@@ -58,30 +63,51 @@ class Terminal(App):
         yield Footer()
 
     async def on_mount(self):
-        self.query_one("#history_plot").display = False
-        self.query_one("#prediction_plot").display = False
+        self.query_one("#history_plot",PlotextPlot).display = False
+        self.query_one("#prediction_plot",PlotextPlot).display = False
+        self.query_one("#history_dataTable",DataTable).display = False
+        model = create_ModelTable(self.query_one("#table_models",DataTable)) 
+
+        self.model = model 
+       
 
     async def on_tabs_tab_activated(self, event: Tabs.TabActivated):
         dashboard = self.query_one("#dashboard_content")
         params = self.query_one("#parameters_content")
+        main = self.query_one("#main_content")
 
         if event.tab.id == "tab_dashboard":
             dashboard.display = True
             params.display = False
-        else:
+            main.display = False
+        elif event.tab.id == "tab_parameters":
             dashboard.display = False
             params.display = True
+            main.display = False
+        else:
+            dashboard.display = False
+            params.display = False
+            main.display = True
+
+            if len(self.model) != len(get_numbers_of_models()):
+                create_ModelTable(self.query_one("#table_models",DataTable)) 
+
+
     
     async def on_input_submitted(self, event: Input.Submitted):
        if event.input.id == "ticker_input":
+        self.query_one("#history_dataTable").clear(columns=True)
         model_type = self.query_one("#model_type", Select).value
         result, mean, std, model, wg = main(event.value,model_type= model_type)
 
         self.query_one("#history_plot").display = True
         self.query_one("#prediction_plot").display = True
+        self.query_one("#ticker_input").display = True
+        self.query_one("#history_dataTable").display = True
 
         history_widget = self.query_one("#history_plot", PlotextPlot)
         prediction_widget = self.query_one("#prediction_plot", PlotextPlot)
+        data_Table = self.query_one("#history_dataTable",DataTable)
 
         history_plot_text_widget(history_widget, result)
 
@@ -93,6 +119,9 @@ class Terminal(App):
             std["Close"].item(),
             3
         )
+
+        make_dataTable(data_Table,result)
+
     
     async def on_button_pressed(self,event: Button.Pressed): 
         sigma = self.query_one("#sigma", Input).value
