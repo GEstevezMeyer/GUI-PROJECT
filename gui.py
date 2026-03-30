@@ -7,7 +7,7 @@ warnings.filterwarnings(
 )
 
 from textual.app import App
-from textual.widgets import Header, Footer, Input,Tabs, Tab,Button,Select, DataTable,Static
+from textual.widgets import Header, Footer, Input,Tabs, Tab,Button,Select, DataTable,Static,ProgressBar
 from training import main 
 from textual.containers import Container
 from plots import *
@@ -15,6 +15,8 @@ from model_handler import *
 from textual_plotext import PlotextPlot  
 import tomllib
 import tomli_w
+
+import asyncio
 
 def is_number(s):
     try:
@@ -45,7 +47,7 @@ class Terminal(App):
             ],value= "Linear",
             prompt="model_type",
             id="model_type"
-        ),
+        ),ProgressBar(total=None,id = "epochs_progressbar"),
             PlotextPlot(id="history_plot"),
             PlotextPlot(id="prediction_plot"),
             DataTable(id="history_dataTable"),
@@ -82,6 +84,7 @@ class Terminal(App):
             dashboard.display = True
             params.display = False
             main.display = False
+            self.query_one("#epochs_progressbar",ProgressBar).display = False
         elif event.tab.id == "tab_parameters":
             dashboard.display = False
             params.display = True
@@ -98,21 +101,34 @@ class Terminal(App):
     
     async def on_input_submitted(self, event: Input.Submitted):
        if event.input.id == "ticker_input":
-        self.query_one("#history_dataTable").clear(columns=True)
-        model_type = self.query_one("#model_type", Select).value
-        result, mean, std, model, wg = main(event.value,model_type= model_type)
-
-        self.query_one("#history_plot").display = True
-        self.query_one("#prediction_plot").display = True
-        self.query_one("#ticker_input").display = True
-        self.query_one("#history_dataTable").display = True
-
+        
         history_widget = self.query_one("#history_plot", PlotextPlot)
         prediction_widget = self.query_one("#prediction_plot", PlotextPlot)
         data_Table = self.query_one("#history_dataTable",DataTable)
+        progressBar = self.query_one("#epochs_progressbar")
+        model_type = self.query_one("#model_type", Select).value
+
+        history_widget.display = False
+        prediction_widget.display = False
+        data_Table.display = False
+
+        data_Table.clear(columns=True)
+
+        result, mean, std, model, wg = await asyncio.to_thread(
+            main,
+            progressBar,
+            event.value,
+            model_type
+        )
+
+        progressBar.display = False
+        progressBar.update(progress=0) 
+
+        history_widget.display = True
+        prediction_widget.display  = True
+        data_Table.display = True
 
         history_plot_text_widget(history_widget, result)
-
         plot_prediction_test_general_widget(
             prediction_widget,
             wg,

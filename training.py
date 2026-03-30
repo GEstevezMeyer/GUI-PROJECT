@@ -16,6 +16,8 @@ import tomllib
 
 from tensorflow.keras.callbacks import History
 
+from textual.widgets import ProgressBar
+
 
 
 
@@ -23,6 +25,7 @@ with open("parameters.toml","rb") as f:
     toml_data:dict = tomllib.load(f)
     EPOCHS = toml_data["EPOCHS"]
     SIGMA  = toml_data["SIGMA"]
+    PERIOD = toml_data["PERIOD"]
 
 
 def add_gaussian_noise(df: pd.DataFrame,sigma = SIGMA):
@@ -31,13 +34,14 @@ def add_gaussian_noise(df: pd.DataFrame,sigma = SIGMA):
         df[columns] += noise
     return df
 
-def extract_ticket_data(ticket:str,period = "max") -> tuple[pd.DataFrame, float, float]:
+def extract_ticket_data(ticket:str,period = PERIOD ,add_gaussian_nois = False) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
     df = yf.Ticker(ticket).history(period = period)
     if df.empty: 
         return False
     df = df.ffill()
     df = df.drop(columns=['Dividends', 'Stock Splits'])
-    df = add_gaussian_noise(df)
+    if add_gaussian_noise:
+        df = add_gaussian_noise(df)
     mean = df.mean()
     std = df.std()
     df = (df-mean)/std
@@ -71,7 +75,7 @@ def create_window_class(df:pd.DataFrame,model_type:str = "LSTM") -> WindowGenera
         wg = WindowGenerator(df=df,input_width=1,shift=1,label_width=1,label_encoder= label_index)
     return wg
 
-def create_sequential_model(window: WindowGenerator,input_shape = None) -> tf.keras.Sequential:
+def create_lstm_model(window: WindowGenerator,input_shape = None) -> tf.keras.Sequential:
 
     if input_shape is None:
         input_shape = window.training_input.shape[1:] 
@@ -111,7 +115,11 @@ def create_linear_model(window: WindowGenerator,input_shape = None):
 
     return model
 
-def training_sequential_model(ticket:str,model_type = "Linear") -> tf.keras.Sequential: 
+def training_sequential_model(widget:ProgressBar, ticket:str,model_type = "Linear") -> tf.keras.Sequential: 
+
+    widget.total = 100 
+
+    widget.display = True
 
     early_stop = EarlyStopping(
         monitor='val_loss',   
@@ -121,15 +129,21 @@ def training_sequential_model(ticket:str,model_type = "Linear") -> tf.keras.Sequ
     )
 
     df,mean,std = extract_ticket_data(ticket)
+
+    widget.advance(20)
+
     if model_type == "Linear":
         df = create_window_class(df)
         model = create_linear_model(df)
     elif model_type == "LSTM":
         df = create_window_class(df,model_type)
-        model = create_sequential_model(df)
+        model = create_lstm_model(df)
+
+    widget.advance(20)
 
     history = model.fit(df.training_tf,validation_data =df.val_tf,epochs= EPOCHS,callbacks=[early_stop])
-    
+
+    widget.advance(40)
 
     return model,history,mean,std,df
 
@@ -158,14 +172,20 @@ def make_toml_file(model_type:str,mean:float,std:float,history:History,ticket:st
     with open(f"tfKerasModels/{ticket}/config.toml", "w") as f:
         f.write(toml_content)
 
-def main(ticket:str,model_type:str="LSTM") ->dict:
-    model,history,mean,std,wg = training_sequential_model(ticket,model_type)
+def main(widget:ProgressBar,ticket:str,model_type:str="LSTM") ->dict:
+    model,history,mean,std,wg = training_sequential_model(widget,ticket,model_type)
+
+    widget.advance(5)
+
     saving_model(model,ticket)
+
+    widget.advance(5)
+
     make_toml_file(model_type,mean,std,history,ticket)
 
+    widget.advance(10)
 
     return history,mean,std,model,wg
 
 
-if __name__ == "__main__": 
-    main("AMZN","Linear")
+

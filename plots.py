@@ -8,7 +8,7 @@ import tomllib
 import plotext as plt
 from textual_plotext import PlotextPlot
 from textual.widgets import DataTable
-import asyncio
+
 import yfinance as yf 
 import numpy as np
 

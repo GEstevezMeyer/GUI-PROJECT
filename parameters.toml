@@ -4,3 +4,4 @@ FIGSIZE = [
 ]
 EPOCHS = 10
 SIGMA = 0.03
+PERIOD = "max"
