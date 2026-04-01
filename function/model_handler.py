@@ -7,6 +7,7 @@ from textual.widgets import DataTable
 def get_numbers_of_models(): 
     res = {}
     res = os.listdir("tfKerasModels")
+    
     return res 
 
 

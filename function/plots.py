@@ -12,6 +12,7 @@ from textual_plotext import PlotextPlot
 from textual.widgets import DataTable
 import yfinance as yf 
 import numpy as np
+from multiprocessing import Process,Pool
 
 
 
@@ -30,8 +31,13 @@ def extract_action_data(ticker:str) -> np.array:
 def extract_tickers_action_data() -> dict: 
     tickers = get_numbers_of_models()
     data = {}
-    for ticker in tickers: 
-        data[ticker] = extract_action_data(ticker)
+
+    with Pool(4) as p: 
+        results = p.map(extract_action_data,tickers)
+
+    for i in range(len(tickers)): 
+        data[tickers[i]] = results[i]
+
 
     return data 
 
